@@ -21,6 +21,7 @@ type MediaserverImageConfig struct {
 	LogLevel                string                `toml:"loglevel"`
 	GRPCClient              map[string]string     `toml:"grpcclient"`
 	VFS                     map[string]*vfsrw.VFS `toml:"vfs"`
+	Concurrency             uint32
 }
 
 func LoadMediaserverImageConfig(fSys fs.FS, fp string, conf *MediaserverImageConfig) error {

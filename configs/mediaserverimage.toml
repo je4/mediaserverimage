@@ -3,6 +3,7 @@ resolveraddr = "[::1]:7777"
 resolvertimeout = "10m"
 resolvernotfoundtimeout = "10s"
 dbconn = "%%DATABASE_URL%%"
+concurrency = 3
 
 [servertls]
 type = "dev"

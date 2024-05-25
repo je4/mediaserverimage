@@ -45,8 +45,9 @@ func main() {
 		cfgFile = "mediaserverimage.toml"
 	}
 	conf := &MediaserverImageConfig{
-		LocalAddr: "localhost:8443",
-		LogLevel:  "DEBUG",
+		LocalAddr:   "localhost:8443",
+		LogLevel:    "DEBUG",
+		Concurrency: 3,
 	}
 	if err := LoadMediaserverImageConfig(cfgFS, cfgFile, conf); err != nil {
 		log.Fatalf("cannot load toml from [%v] %s: %v", cfgFS, cfgFile, err)
@@ -159,7 +160,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("invalid port '%s'", portStr)
 	}
-	srv, err := service.NewActionService(actionDispatcherClient, host, uint32(port), time.Duration(conf.ResolverNotFoundTimeout), vfs, dbClient, logger)
+	srv, err := service.NewActionService(actionDispatcherClient, host, uint32(port), conf.Concurrency, time.Duration(conf.ResolverNotFoundTimeout), vfs, dbClient, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create service")
 	}

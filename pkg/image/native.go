@@ -30,7 +30,7 @@ type nativeImage struct {
 	logger zLogger.ZLogger
 }
 
-func (ni *nativeImage) Open(in io.Reader) (any, error) {
+func (ni *nativeImage) Decode(in io.Reader) (any, error) {
 	img, format, err := image.Decode(in)
 	ni.logger.Debug().Msgf("format: %s", format)
 	return img, errors.Wrap(err, "cannot decode image")
@@ -71,28 +71,45 @@ func (ni *nativeImage) Resize(imgAny any, size string) error {
 	return nil
 }
 
-func (ni *nativeImage) Write(imgAny any, out io.Writer, format string) error {
+func (ni *nativeImage) Encode(imgAny any, writer io.Writer, format string) (uint64, string, error) {
 	img, ok := imgAny.(image.Image)
 	if !ok {
-		return errors.Errorf("cannot convert %T to image.Image", imgAny)
+		return 0, "", errors.Errorf("cannot convert %T to image.Image", imgAny)
 	}
+	var mimetype string
+	out := NewCounterWriter(writer)
+	var err error
 	switch strings.ToLower(format) {
 	case "jpeg":
-		return errors.Wrap(jpeg.Encode(out, img, nil), "cannot encode image as jpeg")
+		err = jpeg.Encode(out, img, nil)
+		mimetype = "image/jpeg"
 	case "png":
-		return errors.Wrap(png.Encode(out, img), "cannot encode image as png")
+		err = png.Encode(out, img)
+		mimetype = "image/png"
 	case "bmp":
-		return errors.Wrap(bmp.Encode(out, img), "cannot encode image as bmp")
+		err = bmp.Encode(out, img)
+		mimetype = "image/bmp"
 	case "tiff":
-		return errors.Wrap(tiff.Encode(out, img, nil), "cannot encode image as tiff")
-	case "":
-		return errors.Wrap(png.Encode(out, img), "cannot encode image as png")
+		err = tiff.Encode(out, img, nil)
+		mimetype = "image/tiff"
 	default:
-		return errors.Errorf("unsupported format %s", format)
+		return 0, "", errors.Errorf("unsupported format %s", format)
 	}
+	if err != nil {
+		return 0, "", errors.Wrapf(err, "cannot encode image to %s", strings.ToLower(format))
+	}
+	return out.Bytes(), mimetype, nil
 }
 
-func (ni *nativeImage) Close(imgAny any) error {
+func (ni *nativeImage) GetDimension(img any) (int, int) {
+	i, ok := img.(image.Image)
+	if !ok {
+		return 0, 0
+	}
+	return i.Bounds().Dx(), i.Bounds().Dy()
+}
+
+func (ni *nativeImage) Release(imgAny any) error {
 	img, ok := imgAny.(image.Image)
 	if !ok {
 		return errors.Errorf("cannot convert %T to image.Image", imgAny)

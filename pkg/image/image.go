@@ -3,8 +3,9 @@ package image
 import "io"
 
 type Image interface {
-	Open(in io.Reader) (any, error)
+	Decode(in io.Reader) (any, error)
 	Resize(img any, size string) error
-	Write(img any, out io.Writer, format string) error
-	Close(img any) error
+	Encode(img any, out io.Writer, format string) (uint64, string, error)
+	Release(img any) error
+	GetDimension(img any) (width int, height int)
 }
