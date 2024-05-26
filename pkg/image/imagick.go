@@ -63,7 +63,7 @@ func (ni *imagickImageHandler) Decode(in io.Reader, width, height int64, format 
 	return res, nil
 }
 
-var sharpenRegexp = regexp.MustCompile(`([0-9.]+)x([0-9.]+)`)
+var sharpenRegexp = regexp.MustCompile(`^([0-9.]+)$`)
 
 func (ni *imagickImageHandler) Sharpen(img any, sigmaRadius string) error {
 	nImg, ok := img.(*imagickImage)
@@ -71,18 +71,14 @@ func (ni *imagickImageHandler) Sharpen(img any, sigmaRadius string) error {
 		return errors.Errorf("cannot convert %T to *imagickImage", img)
 	}
 	parts := sharpenRegexp.FindStringSubmatch(sigmaRadius)
-	if len(parts) != 3 {
+	if len(parts) != 2 {
 		return errors.Errorf("invalid sigma/radius format '%s'", sigmaRadius)
 	}
-	sigma, err := strconv.ParseFloat(parts[2], 64)
+	sigma, err := strconv.ParseFloat(parts[1], 64)
 	if err != nil {
 		return errors.Wrapf(err, "invalid sigma '%s'", parts[1])
 	}
-	radius, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return errors.Wrapf(err, "invalid radius '%s'", parts[2])
-	}
-	if err := nImg.mw.SharpenImage(radius, sigma); err != nil {
+	if err := nImg.mw.SharpenImage(0, sigma); err != nil {
 		return errors.Wrap(err, "cannot sharpen image")
 	}
 	return nil
