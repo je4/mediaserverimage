@@ -6,6 +6,7 @@ import (
 	"emperror.dev/errors"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"github.com/nfnt/resize"
+	"github.com/oliamb/cutter"
 	"golang.org/x/image/bmp"
 	"golang.org/x/image/tiff"
 	_ "golang.org/x/image/vp8"
@@ -20,29 +21,41 @@ import (
 	"strings"
 )
 
-func NewImage(logger zLogger.ZLogger) Image {
-	return &nativeImage{
+type nativeImage struct {
+	img image.Image
+}
+
+func NewImageHandler(logger zLogger.ZLogger) ImageHandler {
+	return &nativeImageHandler{
 		logger: logger,
 	}
 }
 
-type nativeImage struct {
+type nativeImageHandler struct {
 	logger zLogger.ZLogger
 }
 
-func (ni *nativeImage) Decode(in io.Reader) (any, error) {
+func (ni *nativeImageHandler) Decode(in io.Reader, _, _ int64, _ string) (any, error) {
 	img, format, err := image.Decode(in)
 	ni.logger.Debug().Msgf("format: %s", format)
-	return img, errors.Wrap(err, "cannot decode image")
+	res := &nativeImage{
+		img: img,
+	}
+	return res, errors.Wrap(err, "cannot decode image")
+}
+
+func (*nativeImageHandler) Sharpen(_ any, _ string) error {
+	return errors.New("not implemented")
 }
 
 var sizeRegexp = regexp.MustCompile(`(\d+)x(\d+)`)
 
-func (ni *nativeImage) Resize(imgAny any, size string) error {
-	img, ok := imgAny.(image.Image)
+func (ni *nativeImageHandler) Resize(imgAny any, size string, resizeType ResizeType) error {
+	nImg, ok := imgAny.(*nativeImage)
 	if !ok {
-		return errors.Errorf("cannot convert %T to image.Image", imgAny)
+		return errors.Errorf("cannot convert %T to *nativeImage", imgAny)
 	}
+	img := nImg.img
 	rect := img.Bounds()
 	sizeParts := sizeRegexp.FindStringSubmatch(size)
 	if len(sizeParts) != 3 {
@@ -57,25 +70,58 @@ func (ni *nativeImage) Resize(imgAny any, size string) error {
 		return errors.Wrapf(err, "invalid height '%s'", sizeParts[2])
 	}
 
-	rectAspect := rect.Dx() / rect.Dy()
-	thumbAspect := int(width) / int(height)
-	newHeight := uint(height)
-	newWidth := uint(width)
-	if rectAspect > thumbAspect {
-		newHeight = uint(rect.Dy() * width / rect.Dx())
-	} else {
-		newWidth = uint(rect.Dx() * height / rect.Dy())
+	var newWidth, newHeight uint
+	switch resizeType {
+	case ResizeTypeAspect:
+		rectAspect := rect.Dx() / rect.Dy()
+		thumbAspect := int(width) / int(height)
+		newHeight = uint(height)
+		newWidth = uint(width)
+		if rectAspect > thumbAspect {
+			newHeight = uint(rect.Dy() * width / rect.Dx())
+		} else {
+			newWidth = uint(rect.Dx() * height / rect.Dy())
+		}
+	case ResizeTypeStretch:
+		newWidth = uint(width)
+		newHeight = uint(height)
+	case ResizeTypeCrop:
+		rectAspect := rect.Dx() / rect.Dy()
+		thumbAspect := int(width) / int(height)
+		newHeight = uint(height)
+		newWidth = uint(width)
+		if rectAspect < thumbAspect {
+			newHeight = uint(rect.Dy() * width / rect.Dx())
+		} else {
+			newWidth = uint(rect.Dx() * height / rect.Dy())
+		}
+	default:
+		return errors.Errorf("unsupported resize type %d", resizeType)
 	}
-
-	img = resize.Resize(newWidth, newHeight, img, resize.Lanczos3)
+	nImg.img = resize.Resize(newWidth, newHeight, img, resize.Lanczos3)
+	i, ok := nImg.img.(image.Image)
+	if !ok {
+		return errors.Errorf("cannot convert %T to image.Image", imgAny)
+	}
+	if resizeType == ResizeTypeCrop {
+		nImg.img, err = cutter.Crop(i, cutter.Config{
+			Width:  int(width),
+			Height: int(height),
+			Mode:   cutter.Centered,
+		})
+		if err != nil {
+			return errors.Wrapf(err, "cannot crop image(%dx%d) to %dx%d", newWidth, newHeight, width, height)
+		}
+	}
 	return nil
 }
 
-func (ni *nativeImage) Encode(imgAny any, writer io.Writer, format string) (uint64, string, error) {
-	img, ok := imgAny.(image.Image)
+func (ni *nativeImageHandler) Encode(imgAny any, writer io.Writer, format string) (uint64, string, error) {
+	nImg, ok := imgAny.(*nativeImage)
 	if !ok {
-		return 0, "", errors.Errorf("cannot convert %T to image.Image", imgAny)
+		return 0, "", errors.Errorf("cannot convert %T to *nativeImage", imgAny)
 	}
+	img := nImg.img
 	var mimetype string
 	out := NewCounterWriter(writer)
 	var err error
@@ -101,22 +147,26 @@ func (ni *nativeImage) Encode(imgAny any, writer io.Writer, format string) (uint
 	return out.Bytes(), mimetype, nil
 }
 
-func (ni *nativeImage) GetDimension(img any) (int, int) {
-	i, ok := img.(image.Image)
+func (ni *nativeImageHandler) GetDimension(imgAny any) (int, int) {
+	nImg, ok := imgAny.(*nativeImage)
 	if !ok {
 		return 0, 0
 	}
-	return i.Bounds().Dx(), i.Bounds().Dy()
+	img := nImg.img
+	return img.Bounds().Dx(), img.Bounds().Dy()
 }
 
-func (ni *nativeImage) Release(imgAny any) error {
-	img, ok := imgAny.(image.Image)
+func (ni *nativeImageHandler) Release(imgAny any) error {
+	nImg, ok := imgAny.(*nativeImage)
 	if !ok {
-		return errors.Errorf("cannot convert %T to image.Image", imgAny)
+		return errors.Errorf("cannot convert %T to *nativeImage", imgAny)
 	}
-	_ = img
-	img = nil
+	nImg.img = nil
 	return nil
 }
 
-var _ Image = &nativeImage{}
+func (ni *nativeImageHandler) Close() error {
+	return nil
+}
+
+var _ ImageHandler = &nativeImageHandler{}
