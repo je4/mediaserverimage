@@ -15,6 +15,7 @@ type ImageHandler interface {
 	Resize(img any, size string, resizeType ResizeType) error
 	Encode(img any, out io.Writer, format string) (uint64, string, error)
 	Sharpen(img any, sigmaRadius string) error
+	Blur(img any, sigma string) error
 	Release(img any) error
 	GetDimension(img any) (width int, height int)
 	Close() error

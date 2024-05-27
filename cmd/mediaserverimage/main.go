@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/je4/filesystem/v2/pkg/vfsrw"
+	"github.com/je4/filesystem/v3/pkg/vfsrw"
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaserverimage/v2/configs"
 	"github.com/je4/mediaserverimage/v2/pkg/service"
@@ -63,13 +63,28 @@ func main() {
 		out = fp
 	}
 
+	/*
+		addrs, err := net.InterfaceAddrs()
+		if err != nil {
+			log.Fatalf("cannot get interface addresses: %v", err)
+		}
+		addrStr := make([]string, 0, len(addrs))
+		for _, addr := range addrs {
+			addrStr = append(addrStr, addr.String())
+		}
+	*/
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("cannot get hostname: %v", err)
+	}
+
 	output := zerolog.ConsoleWriter{Out: out, TimeFormat: time.RFC3339}
-	_logger := zerolog.New(output).With().Timestamp().Logger()
+	_logger := zerolog.New(output).With().Timestamp().Str("service", "mediaserverimage"). /*.Array("addrs", zLogger.StringArray(addrStr))*/ Str("host", hostname).Str("addr", conf.LocalAddr).Logger()
 	_logger.Level(zLogger.LogLevel(conf.LogLevel))
 	var logger zLogger.ZLogger = &_logger
 	//	var dbLogger = zerologadapter.NewLogger(_logger)
 
-	vfs, err := vfsrw.NewFS(conf.VFS, zLogger.NewZWrapper(logger))
+	vfs, err := vfsrw.NewFS(conf.VFS, logger)
 	if err != nil {
 		logger.Panic().Err(err).Msg("cannot create vfs")
 	}

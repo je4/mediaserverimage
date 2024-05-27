@@ -20,8 +20,13 @@ type imagickImage struct {
 
 func NewImageHandler(logger zLogger.ZLogger) ImageHandler {
 	imagick.Initialize()
+	mw := imagick.NewMagickWand()
+	defer mw.Destroy()
+	imageFormats = mw.QueryFormats("*")
+	_logger := logger.With().Str("class", "imagickImageHandler").Logger()
+	_logger.Debug().Msgf("supported formats: %s", strings.Join(imageFormats, ", "))
 	return &imagickImageHandler{
-		logger: logger,
+		logger: zLogger.ZLogger(&_logger),
 	}
 }
 
@@ -63,22 +68,31 @@ func (ni *imagickImageHandler) Decode(in io.Reader, width, height int64, format 
 	return res, nil
 }
 
-var sharpenRegexp = regexp.MustCompile(`^([0-9.]+)$`)
-
-func (ni *imagickImageHandler) Sharpen(img any, sigmaRadius string) error {
+func (ni *imagickImageHandler) Sharpen(img any, sigma string) error {
 	nImg, ok := img.(*imagickImage)
 	if !ok {
 		return errors.Errorf("cannot convert %T to *imagickImage", img)
 	}
-	parts := sharpenRegexp.FindStringSubmatch(sigmaRadius)
-	if len(parts) != 2 {
-		return errors.Errorf("invalid sigma/radius format '%s'", sigmaRadius)
-	}
-	sigma, err := strconv.ParseFloat(parts[1], 64)
+	sig, err := strconv.ParseFloat(sigma, 64)
 	if err != nil {
-		return errors.Wrapf(err, "invalid sigma '%s'", parts[1])
+		return errors.Wrapf(err, "invalid sigma '%s'", sigma)
 	}
-	if err := nImg.mw.SharpenImage(0, sigma); err != nil {
+	if err := nImg.mw.SharpenImage(0, sig); err != nil {
+		return errors.Wrap(err, "cannot sharpen image")
+	}
+	return nil
+}
+
+func (ni *imagickImageHandler) Blur(img any, sigma string) error {
+	nImg, ok := img.(*imagickImage)
+	if !ok {
+		return errors.Errorf("cannot convert %T to *imagickImage", img)
+	}
+	sig, err := strconv.ParseFloat(sigma, 64)
+	if err != nil {
+		return errors.Wrapf(err, "invalid sigma '%s'", sigma)
+	}
+	if err := nImg.mw.BlurImage(0, sig); err != nil {
 		return errors.Wrap(err, "cannot sharpen image")
 	}
 	return nil

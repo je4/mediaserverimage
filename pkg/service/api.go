@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/je4/filesystem/v2/pkg/writefs"
+	"github.com/je4/filesystem/v3/pkg/writefs"
 	generic "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
 	"github.com/je4/mediaserveraction/v2/pkg/actionController"
@@ -28,10 +28,11 @@ import (
 
 var Type = "image"
 var Params = map[string][]string{
-	"resize": {"size", "format", "stretch", "crop", "aspect", "sharpen"},
+	"resize": {"size", "format", "stretch", "crop", "aspect", "sharpen", "blur"},
 }
 
 func NewActionService(adClient pb.ActionDispatcherClient, host string, port uint32, concurrency uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) (*imageAction, error) {
+	_logger := logger.With().Str("rpcService", "imageAction").Logger()
 	return &imageAction{
 		actionDispatcherClient: adClient,
 		done:                   make(chan bool),
@@ -40,7 +41,7 @@ func NewActionService(adClient pb.ActionDispatcherClient, host string, port uint
 		refreshErrorTimeout:    refreshErrorTimeout,
 		vFS:                    vfs,
 		db:                     db,
-		logger:                 logger,
+		logger:                 &_logger,
 		image:                  image.NewImageHandler(logger),
 		concurrency:            concurrency,
 	}, nil
@@ -95,6 +96,22 @@ func (ia *imageAction) GracefulStop() {
 	if err := ia.image.Close(); err != nil {
 		ia.logger.Error().Err(err).Msg("cannot close image handler")
 	}
+	if resp, err := ia.actionDispatcherClient.RemoveController(context.Background(), &pb.ActionDispatcherParam{
+		Type:        Type,
+		Action:      maps.Keys(Params),
+		Host:        &ia.host,
+		Port:        ia.port,
+		Concurrency: ia.concurrency,
+	}); err != nil {
+		ia.logger.Error().Err(err).Msg("cannot remove controller")
+	} else {
+		if resp.GetStatus() != generic.ResultStatus_OK {
+			ia.logger.Error().Err(err).Msgf("cannot remove controller: %s", resp.GetMessage())
+		} else {
+			ia.logger.Info().Msgf("controller %s:%d removed", ia.host, ia.port)
+		}
+
+	}
 	ia.done <- true
 }
 
@@ -117,74 +134,26 @@ func (ia *imageAction) GetParams(ctx context.Context, param *pb.ParamsParam) (*g
 
 var isUrlRegexp = regexp.MustCompile(`^[a-z]+://`)
 
-func (ia *imageAction) Action(ctx context.Context, ap *pb.ActionParam) (*mediaserverdbproto.Cache, error) {
-	item := ap.GetItem()
-	if item == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "no item defined")
-	}
-	itemIdentifier := item.GetIdentifier()
-	storage := ap.GetStorage()
-	if storage == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "no storage defined")
-	}
-	cacheItem, err := ia.db.GetCache(context.Background(), &mediaserverdbproto.CacheRequest{
-		Identifier: itemIdentifier,
-		Action:     "item",
-		Params:     "",
-	})
-	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "cannot get cache %s/%s/item: %v", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), err)
-	}
-	cacheMetadata := cacheItem.GetMetadata()
-	imagePath := cacheMetadata.GetPath()
-	if !isUrlRegexp.MatchString(imagePath) {
-		imagePath = fmt.Sprintf("%s/%s", storage.GetFilebase(), strings.TrimPrefix(imagePath, "/"))
-	}
-	action := ap.GetAction()
-	if action == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "no action defined")
-	}
-	var params actionCache.ActionParams = ap.GetParams()
-	size := params.Get("size")
-	if size == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "no size defined")
-	}
-	format := params.Get("format")
-	if format == "" {
-		format = "jpeg"
-	}
-	var resizeType = image.ResizeTypeAspect
-	if params.Has("stretch") {
-		resizeType = image.ResizeTypeStretch
-	} else if params.Has("crop") {
-		resizeType = image.ResizeTypeCrop
-	}
-	ia.logger.Info().Msgf("action %s/%s/%s/%s", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), ap.GetAction(), params.String())
+func (ia *imageAction) loadImage(imagePath string, width, height int64, imgType string) (any, error) {
 	fp, err := ia.vFS.Open(imagePath)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "cannot open %s: %v", imagePath, err)
 	}
 	defer fp.Close()
-	img, err := ia.image.Decode(fp, cacheMetadata.GetWidth(), cacheMetadata.GetHeight(), item.GetMetadata().GetSubtype())
+	img, err := ia.image.Decode(fp, width, height, imgType)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot decode %s: %v", imagePath, err)
 	}
-	defer ia.image.Release(img)
-	if err := ia.image.Resize(img, size, resizeType); err != nil {
-		return nil, status.Errorf(codes.Internal, "cannot resize %s: %v", imagePath, err)
-	}
+	return img, nil
+}
 
-	if params.Has("sharpen") {
-		if err := ia.image.Sharpen(img, params.Get("sharpen")); err != nil {
-			return nil, status.Errorf(codes.Internal, "cannot sharpen %s: %v", imagePath, err)
-		}
-	}
-
-	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), action, params.String(), format)
+func (ia *imageAction) storeImage(img any, action string, item *mediaserverdbproto.Item, itemCache *mediaserverdbproto.Cache, storage *mediaserverdbproto.Storage, params actionCache.ActionParams, format string) (*mediaserverdbproto.Cache, error) {
+	itemIdentifier := item.GetIdentifier()
+	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), "resize", params.String(), format)
 	targetPath := fmt.Sprintf(
 		"%s/%s/%s",
-		cacheItem.GetMetadata().GetStorage().GetFilebase(),
-		cacheItem.GetMetadata().GetStorage().GetDatadir(),
+		itemCache.GetMetadata().GetStorage().GetFilebase(),
+		itemCache.GetMetadata().GetStorage().GetDatadir(),
 		cacheName)
 	target, err := writefs.Create(ia.vFS, targetPath)
 	if err != nil {
@@ -210,8 +179,84 @@ func (ia *imageAction) Action(ctx context.Context, ap *pb.ActionParam) (*mediase
 			Size:     int64(filesize),
 			MimeType: mime,
 			Path:     fmt.Sprintf("%s/%s", storage.GetDatadir(), cacheName),
-			Storage:  cacheItem.GetMetadata().GetStorage(),
+			Storage:  storage,
 		},
 	}
 	return resp, nil
+
+}
+
+func (ia *imageAction) resize(item *mediaserverdbproto.Item, itemCache *mediaserverdbproto.Cache, storage *mediaserverdbproto.Storage, params actionCache.ActionParams) (*mediaserverdbproto.Cache, error) {
+	itemIdentifier := item.GetIdentifier()
+
+	cacheItemMetadata := itemCache.GetMetadata()
+	size := params.Get("size")
+	if size == "" {
+		return nil, status.Errorf(codes.InvalidArgument, "no size defined")
+	}
+	format := params.Get("format")
+	if format == "" {
+		format = "jpeg"
+	}
+	var resizeType = image.ResizeTypeAspect
+	if params.Has("stretch") {
+		resizeType = image.ResizeTypeStretch
+	} else if params.Has("crop") {
+		resizeType = image.ResizeTypeCrop
+	}
+	ia.logger.Info().Msgf("action %s/%s/%s/%s", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), "resize", params.String())
+	itemImagePath := cacheItemMetadata.GetPath()
+	if !isUrlRegexp.MatchString(itemImagePath) {
+		itemImagePath = fmt.Sprintf("%s/%s", storage.GetFilebase(), strings.TrimPrefix(itemImagePath, "/"))
+	}
+	img, err := ia.loadImage(itemImagePath, cacheItemMetadata.GetWidth(), cacheItemMetadata.GetHeight(), item.GetMetadata().GetSubtype())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot decode %s: %v", itemImagePath, err)
+	}
+	defer ia.image.Release(img)
+	if err := ia.image.Resize(img, size, resizeType); err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot resize %s: %v", itemImagePath, err)
+	}
+
+	if params.Has("blur") {
+		if err := ia.image.Blur(img, params.Get("blur")); err != nil {
+			return nil, status.Errorf(codes.Internal, "cannot blur %s: %v", itemImagePath, err)
+		}
+	}
+
+	if params.Has("sharpen") {
+		if err := ia.image.Sharpen(img, params.Get("sharpen")); err != nil {
+			return nil, status.Errorf(codes.Internal, "cannot sharpen %s: %v", itemImagePath, err)
+		}
+	}
+
+	return ia.storeImage(img, "resize", item, itemCache, storage, params, format)
+}
+
+func (ia *imageAction) Action(ctx context.Context, ap *pb.ActionParam) (*mediaserverdbproto.Cache, error) {
+	item := ap.GetItem()
+	if item == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "no item defined")
+	}
+	itemIdentifier := item.GetIdentifier()
+	storage := ap.GetStorage()
+	if storage == nil {
+		return nil, status.Errorf(codes.InvalidArgument, "no storage defined")
+	}
+	cacheItem, err := ia.db.GetCache(context.Background(), &mediaserverdbproto.CacheRequest{
+		Identifier: itemIdentifier,
+		Action:     "item",
+		Params:     "",
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "cannot get cache %s/%s/item: %v", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), err)
+	}
+	action := ap.GetAction()
+	switch strings.ToLower(action) {
+	case "resize":
+		return ia.resize(item, cacheItem, storage, ap.GetParams())
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "no action defined")
+
+	}
 }
