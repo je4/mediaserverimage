@@ -8,10 +8,8 @@ import (
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaserverimage/v2/configs"
 	"github.com/je4/mediaserverimage/v2/pkg/service"
-	pbclient "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/client"
-	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbClient "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/client"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverclient "github.com/je4/mediaserverproto/v2/pkg/mediaserver/client"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	resolverclient "github.com/je4/miniresolver/v2/pkg/client"
 	resolverhelper "github.com/je4/miniresolver/v2/pkg/grpchelper"
 	"github.com/je4/trustutil/v2/pkg/grpchelper"
@@ -120,8 +118,8 @@ func main() {
 		defer resolverCloser.Close()
 		resolverhelper.RegisterResolver(resolver, time.Duration(conf.ResolverTimeout), time.Duration(conf.ResolverNotFoundTimeout), logger)
 
-		actionDispatcherClientAddr = resolverhelper.GetAddress(pb.ActionDispatcher_Ping_FullMethodName)
-		dbClientAddr = resolverhelper.GetAddress(mediaserverdbproto.DBController_Ping_FullMethodName)
+		actionDispatcherClientAddr = resolverhelper.GetAddress(mediaserverproto.ActionDispatcher_Ping_FullMethodName)
+		dbClientAddr = resolverhelper.GetAddress(mediaserverproto.Database_Ping_FullMethodName)
 
 		logger.Info().Msgf("resolver address is %s", conf.ResolverAddr)
 		miniResolverClient, miniResolverCloser, err := resolverclient.CreateClient(conf.ResolverAddr, clientTLSConfig)
@@ -137,7 +135,7 @@ func main() {
 		actionDispatcherClientAddr = conf.GRPCClient["mediaserveractiondispatcher"]
 	}
 
-	actionDispatcherClient, actionDispatcherConn, err := pbclient.CreateDispatcherClient(actionDispatcherClientAddr, clientTLSConfig)
+	actionDispatcherClient, actionDispatcherConn, err := mediaserverclient.NewActionDispatcherClient(actionDispatcherClientAddr, clientTLSConfig)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserveractiondispatcher grpc client: %v", err)
 	}
@@ -152,7 +150,7 @@ func main() {
 		}
 	}
 
-	dbClient, dbClientConn, err := mediaserverdbClient.CreateClient(dbClientAddr, clientTLSConfig)
+	dbClient, dbClientConn, err := mediaserverclient.NewDatabaseClient(dbClientAddr, clientTLSConfig)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
@@ -190,7 +188,7 @@ func main() {
 		logger.Fatal().Err(err).Msg("cannot create server")
 	}
 	// register the server
-	pb.RegisterActionControllerServer(grpcServer, srv)
+	mediaserverproto.RegisterActionServer(grpcServer, srv)
 
 	grpcServer.Startup()
 

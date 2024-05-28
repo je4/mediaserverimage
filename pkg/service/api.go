@@ -8,8 +8,7 @@ import (
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
 	"github.com/je4/mediaserveraction/v2/pkg/actionController"
 	"github.com/je4/mediaserverimage/v2/pkg/image"
-	pb "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"golang.org/x/exp/maps"
 	_ "golang.org/x/image/bmp"
@@ -31,7 +30,7 @@ var Params = map[string][]string{
 	"resize": {"size", "format", "stretch", "crop", "aspect", "sharpen", "blur"},
 }
 
-func NewActionService(adClient pb.ActionDispatcherClient, host string, port uint32, concurrency uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverdbproto.DBControllerClient, logger zLogger.ZLogger) (*imageAction, error) {
+func NewActionService(adClient mediaserverproto.ActionDispatcherClient, host string, port uint32, concurrency uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
 	_logger := logger.With().Str("rpcService", "imageAction").Logger()
 	return &imageAction{
 		actionDispatcherClient: adClient,
@@ -48,15 +47,15 @@ func NewActionService(adClient pb.ActionDispatcherClient, host string, port uint
 }
 
 type imageAction struct {
-	pb.UnimplementedActionControllerServer
-	actionDispatcherClient pb.ActionDispatcherClient
+	mediaserverproto.UnimplementedActionServer
+	actionDispatcherClient mediaserverproto.ActionDispatcherClient
 	logger                 zLogger.ZLogger
 	done                   chan bool
 	host                   string
 	port                   uint32
 	refreshErrorTimeout    time.Duration
 	vFS                    fs.FS
-	db                     mediaserverdbproto.DBControllerClient
+	db                     mediaserverproto.DatabaseClient
 	image                  image.ImageHandler
 	concurrency            uint32
 }
@@ -65,7 +64,7 @@ func (ia *imageAction) Start() error {
 	go func() {
 		for {
 			waitDuration := ia.refreshErrorTimeout
-			if resp, err := ia.actionDispatcherClient.AddController(context.Background(), &pb.ActionDispatcherParam{
+			if resp, err := ia.actionDispatcherClient.AddController(context.Background(), &mediaserverproto.ActionDispatcherParam{
 				Type:        Type,
 				Action:      maps.Keys(Params),
 				Host:        &ia.host,
@@ -96,7 +95,7 @@ func (ia *imageAction) GracefulStop() {
 	if err := ia.image.Close(); err != nil {
 		ia.logger.Error().Err(err).Msg("cannot close image handler")
 	}
-	if resp, err := ia.actionDispatcherClient.RemoveController(context.Background(), &pb.ActionDispatcherParam{
+	if resp, err := ia.actionDispatcherClient.RemoveController(context.Background(), &mediaserverproto.ActionDispatcherParam{
 		Type:        Type,
 		Action:      maps.Keys(Params),
 		Host:        &ia.host,
@@ -122,7 +121,7 @@ func (ia *imageAction) Ping(context.Context, *emptypb.Empty) (*generic.DefaultRe
 		Data:    nil,
 	}, nil
 }
-func (ia *imageAction) GetParams(ctx context.Context, param *pb.ParamsParam) (*generic.StringList, error) {
+func (ia *imageAction) GetParams(ctx context.Context, param *mediaserverproto.ParamsParam) (*generic.StringList, error) {
 	params, ok := Params[param.GetAction()]
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "action %s::%s not found", param.GetType(), param.GetAction())
@@ -147,7 +146,7 @@ func (ia *imageAction) loadImage(imagePath string, width, height int64, imgType 
 	return img, nil
 }
 
-func (ia *imageAction) storeImage(img any, action string, item *mediaserverdbproto.Item, itemCache *mediaserverdbproto.Cache, storage *mediaserverdbproto.Storage, params actionCache.ActionParams, format string) (*mediaserverdbproto.Cache, error) {
+func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams, format string) (*mediaserverproto.Cache, error) {
 	itemIdentifier := item.GetIdentifier()
 	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), "resize", params.String(), format)
 	targetPath := fmt.Sprintf(
@@ -165,12 +164,12 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverdbpro
 		return nil, status.Errorf(codes.Internal, "cannot encode %s: %v", targetPath, err)
 	}
 	width, height := ia.image.GetDimension(img)
-	resp := &mediaserverdbproto.Cache{
-		Identifier: &mediaserverdbproto.ItemIdentifier{
+	resp := &mediaserverproto.Cache{
+		Identifier: &mediaserverproto.ItemIdentifier{
 			Collection: itemIdentifier.GetCollection(),
 			Signature:  itemIdentifier.GetSignature(),
 		},
-		Metadata: &mediaserverdbproto.CacheMetadata{
+		Metadata: &mediaserverproto.CacheMetadata{
 			Action:   action,
 			Params:   params.String(),
 			Width:    int64(width),
@@ -186,7 +185,7 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverdbpro
 
 }
 
-func (ia *imageAction) resize(item *mediaserverdbproto.Item, itemCache *mediaserverdbproto.Cache, storage *mediaserverdbproto.Storage, params actionCache.ActionParams) (*mediaserverdbproto.Cache, error) {
+func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams) (*mediaserverproto.Cache, error) {
 	itemIdentifier := item.GetIdentifier()
 
 	cacheItemMetadata := itemCache.GetMetadata()
@@ -233,7 +232,7 @@ func (ia *imageAction) resize(item *mediaserverdbproto.Item, itemCache *mediaser
 	return ia.storeImage(img, "resize", item, itemCache, storage, params, format)
 }
 
-func (ia *imageAction) Action(ctx context.Context, ap *pb.ActionParam) (*mediaserverdbproto.Cache, error) {
+func (ia *imageAction) Action(ctx context.Context, ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
 	item := ap.GetItem()
 	if item == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "no item defined")
@@ -243,7 +242,7 @@ func (ia *imageAction) Action(ctx context.Context, ap *pb.ActionParam) (*mediase
 	if storage == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "no storage defined")
 	}
-	cacheItem, err := ia.db.GetCache(context.Background(), &mediaserverdbproto.CacheRequest{
+	cacheItem, err := ia.db.GetCache(context.Background(), &mediaserverproto.CacheRequest{
 		Identifier: itemIdentifier,
 		Action:     "item",
 		Params:     "",

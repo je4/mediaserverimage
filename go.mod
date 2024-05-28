@@ -7,8 +7,8 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/je4/filesystem/v3 v3.0.2
 	github.com/je4/genericproto/v2 v2.0.3
-	github.com/je4/mediaserveraction/v2 v2.0.1
-	github.com/je4/mediaserverproto/v2 v2.0.21
+	github.com/je4/mediaserveraction/v2 v2.0.3
+	github.com/je4/mediaserverproto/v2 v2.0.23
 	github.com/je4/miniresolver/v2 v2.0.3
 	github.com/je4/trustutil/v2 v2.0.9
 	github.com/je4/utils/v2 v2.0.37
