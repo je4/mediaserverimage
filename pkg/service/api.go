@@ -10,7 +10,6 @@ import (
 	"github.com/je4/mediaserverimage/v2/pkg/image"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
-	"golang.org/x/exp/maps"
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/vp8"
@@ -61,12 +60,18 @@ type imageAction struct {
 }
 
 func (ia *imageAction) Start() error {
+	actionParams := map[string]*generic.StringList{}
+	for action, params := range Params {
+		actionParams[action] = &generic.StringList{
+			Values: params,
+		}
+	}
 	go func() {
 		for {
 			waitDuration := ia.refreshErrorTimeout
 			if resp, err := ia.actionDispatcherClient.AddController(context.Background(), &mediaserverproto.ActionDispatcherParam{
 				Type:        Type,
-				Action:      maps.Keys(Params),
+				Actions:     actionParams,
 				Host:        &ia.host,
 				Port:        ia.port,
 				Concurrency: ia.concurrency,
@@ -95,9 +100,15 @@ func (ia *imageAction) GracefulStop() {
 	if err := ia.image.Close(); err != nil {
 		ia.logger.Error().Err(err).Msg("cannot close image handler")
 	}
+	actionParams := map[string]*generic.StringList{}
+	for action, params := range Params {
+		actionParams[action] = &generic.StringList{
+			Values: params,
+		}
+	}
 	if resp, err := ia.actionDispatcherClient.RemoveController(context.Background(), &mediaserverproto.ActionDispatcherParam{
 		Type:        Type,
-		Action:      maps.Keys(Params),
+		Actions:     actionParams,
 		Host:        &ia.host,
 		Port:        ia.port,
 		Concurrency: ia.concurrency,

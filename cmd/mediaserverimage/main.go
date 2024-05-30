@@ -45,6 +45,7 @@ func main() {
 	if err := LoadMediaserverImageConfig(cfgFS, cfgFile, conf); err != nil {
 		log.Fatalf("cannot load toml from [%v] %s: %v", cfgFS, cfgFile, err)
 	}
+
 	// create logger instance
 	hostname, err := os.Hostname()
 	if err != nil {

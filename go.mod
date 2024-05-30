@@ -9,10 +9,10 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/je4/filesystem/v3 v3.0.2
 	github.com/je4/genericproto/v2 v2.0.3
-	github.com/je4/mediaserveraction/v2 v2.0.4
-	github.com/je4/mediaserverproto/v2 v2.0.23
-	github.com/je4/miniresolver/v2 v2.0.7
-	github.com/je4/trustutil/v2 v2.0.11
+	github.com/je4/mediaserveraction/v2 v2.0.7
+	github.com/je4/mediaserverproto/v2 v2.0.26
+	github.com/je4/miniresolver/v2 v2.0.8
+	github.com/je4/trustutil/v2 v2.0.12
 	github.com/je4/utils/v2 v2.0.38
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/oliamb/cutter v0.2.2
@@ -41,7 +41,7 @@ require (
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect
-	github.com/telkomdev/go-stash v1.0.3 // indirect
+	github.com/telkomdev/go-stash v1.0.4 // indirect
 	go.step.sm/crypto v0.45.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
