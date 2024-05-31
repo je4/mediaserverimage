@@ -75,7 +75,7 @@ func main() {
 		defer _logfile.Close()
 	}
 
-	l2 := _logger.With().Str("host", hostname).Str("addr", conf.LocalAddr).Logger() //.Output(output)
+	l2 := _logger.With().Str("host", hostname).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
 	vfs, err := vfsrw.NewFS(conf.VFS, logger)
@@ -111,6 +111,15 @@ func main() {
 	}
 	defer resolverClient.Close()
 
+	// create grpc server with resolver for name resolution
+	grpcServer, err := grpchelper.NewServer(conf.LocalAddr, serverTLSConfig, logger)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("cannot create server")
+	}
+	addr := grpcServer.GetAddr()
+	l2 = _logger.With().Str("addr", addr).Logger() //.Output(output)
+	logger = &l2
+
 	actionDispatcherClient, err := resolver.NewClient[mediaserverproto.ActionDispatcherClient](resolverClient, mediaserverproto.NewActionDispatcherClient, mediaserverproto.ActionDispatcher_ServiceDesc.ServiceName)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserveractiondispatcher grpc client: %v", err)
@@ -123,7 +132,7 @@ func main() {
 	}
 	resolver.DoPing(dbClient, logger)
 
-	host, portStr, err := net.SplitHostPort(conf.LocalAddr)
+	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("invalid addr '%s' in config", conf.LocalAddr)
 	}
@@ -140,11 +149,6 @@ func main() {
 	}
 	defer srv.GracefulStop()
 
-	// create grpc server with resolver for name resolution
-	grpcServer, err := grpchelper.NewServer(conf.LocalAddr, serverTLSConfig, logger)
-	if err != nil {
-		logger.Fatal().Err(err).Msg("cannot create server")
-	}
 	// register the server
 	mediaserverproto.RegisterActionServer(grpcServer, srv)
 
