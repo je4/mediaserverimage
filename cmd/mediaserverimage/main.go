@@ -136,6 +136,9 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("invalid addr '%s' in config", conf.LocalAddr)
 	}
+	if host == "::" {
+		host = ""
+	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("invalid port '%s'", portStr)
