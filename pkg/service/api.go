@@ -26,7 +26,8 @@ import (
 
 var Type = "image"
 var Params = map[string][]string{
-	"resize": {"size", "format", "stretch", "crop", "aspect", "sharpen", "blur"},
+	"resize":  {"size", "format", "stretch", "crop", "aspect", "sharpen", "blur", "tile"},
+	"convert": {"format", "tile"},
 }
 
 func NewActionService(adClient mediaserverproto.ActionDispatcherClient, host string, port uint32, concurrency uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
@@ -157,9 +158,9 @@ func (ia *imageAction) loadImage(imagePath string, width, height int64, imgType 
 	return img, nil
 }
 
-func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams, format string) (*mediaserverproto.Cache, error) {
+func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams, format, tile string) (*mediaserverproto.Cache, error) {
 	itemIdentifier := item.GetIdentifier()
-	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), "resize", params.String(), format)
+	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), action, params.String(), format)
 	targetPath := fmt.Sprintf(
 		"%s/%s/%s",
 		itemCache.GetMetadata().GetStorage().GetFilebase(),
@@ -170,7 +171,7 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto
 		return nil, status.Errorf(codes.NotFound, "cannot open %s: %v", targetPath, err)
 	}
 	defer target.Close()
-	filesize, mime, err := ia.image.Encode(img, target, format)
+	filesize, mime, err := ia.image.Encode(img, target, format, tile)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot encode %s: %v", targetPath, err)
 	}
@@ -208,6 +209,7 @@ func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserve
 	if format == "" {
 		format = "jpeg"
 	}
+	tile := params.Get("tile")
 	var resizeType = image.ResizeTypeAspect
 	if params.Has("stretch") {
 		resizeType = image.ResizeTypeStretch
@@ -240,7 +242,28 @@ func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserve
 		}
 	}
 
-	return ia.storeImage(img, "resize", item, itemCache, storage, params, format)
+	return ia.storeImage(img, "resize", item, itemCache, storage, params, format, tile)
+}
+
+func (ia *imageAction) convert(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams) (*mediaserverproto.Cache, error) {
+	itemIdentifier := item.GetIdentifier()
+	cacheItemMetadata := itemCache.GetMetadata()
+	format := params.Get("format")
+	if format == "" {
+		format = "jpeg"
+	}
+	tile := params.Get("tile")
+	ia.logger.Info().Msgf("action %s/%s/%s/%s", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), "convert", params.String())
+	itemImagePath := cacheItemMetadata.GetPath()
+	if !isUrlRegexp.MatchString(itemImagePath) {
+		itemImagePath = fmt.Sprintf("%s/%s", storage.GetFilebase(), strings.TrimPrefix(itemImagePath, "/"))
+	}
+	img, err := ia.loadImage(itemImagePath, cacheItemMetadata.GetWidth(), cacheItemMetadata.GetHeight(), item.GetMetadata().GetSubtype())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cannot decode %s: %v", itemImagePath, err)
+	}
+	defer ia.image.Release(img)
+	return ia.storeImage(img, "convert", item, itemCache, storage, params, format, tile)
 }
 
 func (ia *imageAction) Action(ctx context.Context, ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
@@ -265,6 +288,8 @@ func (ia *imageAction) Action(ctx context.Context, ap *mediaserverproto.ActionPa
 	switch strings.ToLower(action) {
 	case "resize":
 		return ia.resize(item, cacheItem, storage, ap.GetParams())
+	case "convert":
+		return ia.convert(item, cacheItem, storage, ap.GetParams())
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "no action defined")
 

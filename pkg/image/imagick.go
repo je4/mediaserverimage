@@ -161,7 +161,9 @@ func (ni *imagickImageHandler) Resize(imgAny any, size string, resizeType Resize
 	return nil
 }
 
-func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format string) (uint64, string, error) {
+var tileRegexp = regexp.MustCompile(`^(\d+)x(\d+)$`)
+
+func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, tile string) (uint64, string, error) {
 	img, ok := imgAny.(*imagickImage)
 	if !ok {
 		return 0, "", errors.Errorf("cannot convert %T to image.Image", imgAny)
@@ -169,6 +171,19 @@ func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format strin
 	var mimetype string
 
 	switch strings.ToLower(format) {
+	case "jp2":
+		mimetype = "image/jp2"
+		if tile != "" {
+			if !tileRegexp.MatchString(tile) {
+				return 0, "", errors.Errorf("invalid tile format '%s'", tile)
+			}
+			if err := img.mw.SetExtract(tile); err != nil {
+				return 0, "", errors.Wrap(err, "cannot set tile option")
+			}
+		}
+		if err := img.mw.SetFormat(strings.ToUpper(format)); err != nil {
+			return 0, "", errors.Wrapf(err, "cannot set format to %s", format)
+		}
 	default:
 		mimetype = fmt.Sprintf("image/%s", format)
 		if err := img.mw.SetFormat(strings.ToUpper(format)); err != nil {
