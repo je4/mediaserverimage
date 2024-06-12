@@ -163,14 +163,20 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto
 	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), action, params.String(), format)
 	targetPath := fmt.Sprintf(
 		"%s/%s/%s",
-		itemCache.GetMetadata().GetStorage().GetFilebase(),
-		itemCache.GetMetadata().GetStorage().GetDatadir(),
+		storage.GetFilebase(),
+		storage.GetDatadir(),
 		cacheName)
 	target, err := writefs.Create(ia.vFS, targetPath)
 	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "cannot open %s: %v", targetPath, err)
 	}
-	defer target.Close()
+	defer func() {
+		if err := target.Close(); err != nil {
+			ia.logger.Error().Err(err).Msgf("cannot close %s/%s", ia.vFS, targetPath)
+		} else {
+			ia.logger.Info().Msgf("stored %s/%s", ia.vFS, targetPath)
+		}
+	}()
 	filesize, mime, err := ia.image.Encode(img, target, format, tile)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot encode %s: %v", targetPath, err)

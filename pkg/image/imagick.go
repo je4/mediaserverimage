@@ -174,8 +174,15 @@ func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, tile
 	case "jp2":
 		mimetype = "image/jp2"
 		if tile != "" {
-			if !tileRegexp.MatchString(tile) {
+			parts := tileRegexp.FindStringSubmatch(tile)
+			if parts == nil {
 				return 0, "", errors.Errorf("invalid tile format '%s'", tile)
+			}
+			if err := img.mw.SetOption("jp2:tilewidth", parts[1]); err != nil {
+				return 0, "", errors.Wrap(err, "cannot set tile width option")
+			}
+			if err := img.mw.SetOption("jp2:tileheight", parts[2]); err != nil {
+				return 0, "", errors.Wrap(err, "cannot set tile height option")
 			}
 			if err := img.mw.SetExtract(tile); err != nil {
 				return 0, "", errors.Wrap(err, "cannot set tile option")
@@ -190,7 +197,10 @@ func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, tile
 			return 0, "", errors.Wrapf(err, "cannot set format to %s", format)
 		}
 	}
-	data := img.mw.GetImageBlob()
+	data, err := img.mw.GetImageBlob()
+	if err != nil {
+		return 0, "", errors.Wrap(err, "cannot get image data")
+	}
 	size, err := io.Copy(writer, strings.NewReader(string(data)))
 	if err != nil {
 		return 0, "", errors.Wrap(err, "cannot write image data")
