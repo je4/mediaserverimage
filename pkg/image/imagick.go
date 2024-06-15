@@ -8,6 +8,7 @@ import (
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"gopkg.in/gographics/imagick.v3/imagick"
 	"io"
+	"math"
 	"regexp"
 	"slices"
 	"strconv"
@@ -122,9 +123,18 @@ func (ni *imagickImageHandler) Resize(imgAny any, size string, resizeType Resize
 		return errors.Wrapf(err, "invalid height '%s'", sizeParts[2])
 	}
 
+	if width == 0 && height == 0 {
+		return errors.New("both width and height are 0")
+	}
 	var newWidth, newHeight uint
 	switch resizeType {
 	case ResizeTypeAspect:
+		if width == 0 {
+			width = math.MaxInt
+		}
+		if height == 0 {
+			height = math.MaxInt
+		}
 		rectAspect := cols / rows
 		thumbAspect := uint(width) / uint(height)
 		newHeight = uint(height)
@@ -135,9 +145,15 @@ func (ni *imagickImageHandler) Resize(imgAny any, size string, resizeType Resize
 			newWidth = cols * uint(height) / rows
 		}
 	case ResizeTypeStretch:
+		if width == 0 || height == 0 {
+			return errors.New("both width and height must be set for stretch resize")
+		}
 		newWidth = uint(width)
 		newHeight = uint(height)
 	case ResizeTypeCrop:
+		if width == 0 || height == 0 {
+			return errors.New("both width and height must be set for crop resize")
+		}
 		rectAspect := cols / rows
 		thumbAspect := uint(width) / uint(height)
 		newHeight = uint(height)

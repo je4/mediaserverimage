@@ -1,0 +1,62 @@
+#localaddr = ":7685"
+localaddr = ":0"
+clientdomain = "ubmedia"
+resolveraddr = "127.0.0.1:7777"
+resolvertimeout = "10m"
+resolvernotfoundtimeout = "10s"
+dbconn = "%%DATABASE_URL%%"
+concurrency = 3
+
+[servertls]
+type = "dev"
+
+[clienttls]
+type = "dev"
+
+[vfs.test]
+name = "test"
+type = "remote"
+[vfs.test.remote]
+address = "https://localhost:8762"
+basedir = ""
+[vfs.test.remote.clienttls]
+type = "dev"
+interval = "1h"
+
+[vfs.tests3]
+name = "tests3"
+type = "remote"
+[vfs.tests3.remote]
+address = "https://localhost:8762"
+basedir = ""
+[vfs.tests3.remote.clienttls]
+type = "dev"
+interval = "1h"
+
+[vfs.testcache]
+name = "testcache"
+type = "remote"
+[vfs.testcache.remote]
+address = "https://localhost:8762"
+basedir = ""
+[vfs.testcache.remote.clienttls]
+type = "dev"
+interval = "1h"
+
+[log]
+level = "debug"
+
+[log.stash]
+#logstash_host="sb-uwf4.swissbib.unibas.ch"
+logstashhost="localhost"
+logstashport=5046
+logstashtracelevel="ERROR"
+namespace="mediaserverimage"
+dataset=""
+#dataset="logs-mediaserver"
+[log.stash.tls]
+type="file"
+cert="certs/ub-log.ub.unibas.ch.cert.pem"
+key="certs/ub-log.ub.unibas.ch.key.pem"
+ca=["certs/ca.crt"]
+interval="1h"

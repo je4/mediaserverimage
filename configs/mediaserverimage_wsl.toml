@@ -1,5 +1,6 @@
 #localaddr = ":7685"
 localaddr = ":0"
+clientdomain = "ubmedia"
 resolveraddr = "127.0.0.1:7777"
 resolvertimeout = "10m"
 resolvernotfoundtimeout = "10s"
