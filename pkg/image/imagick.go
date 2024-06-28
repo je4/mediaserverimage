@@ -110,6 +110,9 @@ func (ni *imagickImageHandler) Resize(imgAny any, size string, resizeType Resize
 	if err != nil {
 		return errors.Wrap(err, "cannot get image size")
 	}
+	if cols == 0 || rows == 0 {
+		return errors.New("image size is 0")
+	}
 	sizeParts := sizeRegexp.FindStringSubmatch(size)
 	if len(sizeParts) != 3 {
 		return errors.Errorf("invalid size format '%s'", size)

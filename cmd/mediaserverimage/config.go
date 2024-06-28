@@ -32,7 +32,7 @@ func LoadMediaserverImageConfig(fSys fs.FS, fp string, conf *MediaserverImageCon
 			return errors.Wrap(err, "cannot get current working directory")
 		}
 		fSys = os.DirFS(path)
-		fp = "mediaserverpg.toml"
+		fp = "mediaserverimage.toml"
 	}
 	data, err := fs.ReadFile(fSys, fp)
 	if err != nil {
