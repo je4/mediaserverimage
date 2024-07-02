@@ -30,7 +30,7 @@ var Params = map[string][]string{
 	"convert": {"format", "tile"},
 }
 
-func NewActionService(adClient mediaserverproto.ActionDispatcherClient, host string, port uint32, concurrency uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
+func NewActionService(adClient mediaserverproto.ActionDispatcherClient, host string, port uint32, concurrency, queueSize uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
 	_logger := logger.With().Str("rpcService", "imageAction").Logger()
 	return &imageAction{
 		actionDispatcherClient: adClient,
@@ -43,6 +43,7 @@ func NewActionService(adClient mediaserverproto.ActionDispatcherClient, host str
 		logger:                 &_logger,
 		image:                  image.NewImageHandler(logger),
 		concurrency:            concurrency,
+		queueSize:              queueSize,
 	}, nil
 }
 
@@ -58,6 +59,7 @@ type imageAction struct {
 	db                     mediaserverproto.DatabaseClient
 	image                  image.ImageHandler
 	concurrency            uint32
+	queueSize              uint32
 }
 
 func (ia *imageAction) Start() error {
@@ -76,6 +78,7 @@ func (ia *imageAction) Start() error {
 				Host:        &ia.host,
 				Port:        ia.port,
 				Concurrency: ia.concurrency,
+				QueueSize:   ia.queueSize,
 			}); err != nil {
 				ia.logger.Error().Err(err).Msg("cannot add controller")
 			} else {

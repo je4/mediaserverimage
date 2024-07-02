@@ -21,8 +21,9 @@ type MediaserverImageConfig struct {
 	ClientTLS               loaderConfig.TLSConfig `toml:"clienttls"`
 	GRPCClient              map[string]string      `toml:"grpcclient"`
 	VFS                     map[string]*vfsrw.VFS  `toml:"vfs"`
-	Concurrency             uint32
-	Log                     zLogger.Config `toml:"log"`
+	Concurrency             uint32                 `toml:"concurrency"`
+	QueueSize               uint32                 `toml:"queuesize"`
+	Log                     zLogger.Config         `toml:"log"`
 }
 
 func LoadMediaserverImageConfig(fSys fs.FS, fp string, conf *MediaserverImageConfig) error {

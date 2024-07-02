@@ -6,6 +6,7 @@ resolvertimeout = "10m"
 resolvernotfoundtimeout = "10s"
 dbconn = "%%DATABASE_URL%%"
 concurrency = 3
+queuesize = 50
 
 [servertls]
 type = "dev"

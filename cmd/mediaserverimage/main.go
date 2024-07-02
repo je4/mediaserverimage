@@ -146,7 +146,7 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("invalid port '%s'", portStr)
 	}
-	srv, err := service.NewActionService(actionDispatcherClient, host, uint32(port), conf.Concurrency, time.Duration(conf.ResolverNotFoundTimeout), vfs, dbClient, logger)
+	srv, err := service.NewActionService(actionDispatcherClient, host, uint32(port), conf.Concurrency, conf.QueueSize, time.Duration(conf.ResolverNotFoundTimeout), vfs, dbClient, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create service")
 	}

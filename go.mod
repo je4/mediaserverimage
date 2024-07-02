@@ -8,7 +8,7 @@ require (
 	github.com/je4/filesystem/v3 v3.0.11
 	github.com/je4/genericproto/v2 v2.0.3
 	github.com/je4/mediaserveraction/v2 v2.0.18
-	github.com/je4/mediaserverproto/v2 v2.0.35
+	github.com/je4/mediaserverproto/v2 v2.0.36
 	github.com/je4/miniresolver/v2 v2.0.17
 	github.com/je4/trustutil/v2 v2.0.19
 	github.com/je4/utils/v2 v2.0.41
@@ -62,14 +62,14 @@ require (
 	github.com/telkomdev/go-stash v1.0.4 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.step.sm/crypto v0.47.1 // indirect
+	go.step.sm/crypto v0.48.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.24.0 // indirect
 	golang.org/x/net v0.26.0 // indirect
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240624140628-dc46fd24d27d // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
