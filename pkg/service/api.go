@@ -16,6 +16,7 @@ import (
 	_ "golang.org/x/image/vp8l"
 	_ "golang.org/x/image/webp"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"io/fs"
@@ -30,36 +31,36 @@ var Params = map[string][]string{
 	"convert": {"format", "tile"},
 }
 
-func NewActionService(adClient mediaserverproto.ActionDispatcherClient, host string, port uint32, concurrency, queueSize uint32, refreshErrorTimeout time.Duration, vfs fs.FS, db mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
+func NewActionService(adClients map[string]mediaserverproto.ActionDispatcherClient, instance string, domains []string, concurrency, queueSize uint32, refreshErrorTimeout time.Duration, vfs fs.FS, dbs map[string]mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
 	_logger := logger.With().Str("rpcService", "imageAction").Logger()
 	return &imageAction{
-		actionDispatcherClient: adClient,
-		done:                   make(chan bool),
-		host:                   host,
-		port:                   port,
-		refreshErrorTimeout:    refreshErrorTimeout,
-		vFS:                    vfs,
-		db:                     db,
-		logger:                 &_logger,
-		image:                  image.NewImageHandler(logger),
-		concurrency:            concurrency,
-		queueSize:              queueSize,
+		actionDispatcherClients: adClients,
+		done:                    make(chan bool),
+		instance:                instance,
+		domains:                 domains,
+		refreshErrorTimeout:     refreshErrorTimeout,
+		vFS:                     vfs,
+		dbs:                     dbs,
+		logger:                  &_logger,
+		image:                   image.NewImageHandler(logger),
+		concurrency:             concurrency,
+		queueSize:               queueSize,
 	}, nil
 }
 
 type imageAction struct {
 	mediaserverproto.UnimplementedActionServer
-	actionDispatcherClient mediaserverproto.ActionDispatcherClient
-	logger                 zLogger.ZLogger
-	done                   chan bool
-	host                   string
-	port                   uint32
-	refreshErrorTimeout    time.Duration
-	vFS                    fs.FS
-	db                     mediaserverproto.DatabaseClient
-	image                  image.ImageHandler
-	concurrency            uint32
-	queueSize              uint32
+	actionDispatcherClients map[string]mediaserverproto.ActionDispatcherClient
+	logger                  zLogger.ZLogger
+	done                    chan bool
+	refreshErrorTimeout     time.Duration
+	vFS                     fs.FS
+	dbs                     map[string]mediaserverproto.DatabaseClient
+	image                   image.ImageHandler
+	concurrency             uint32
+	queueSize               uint32
+	instance                string
+	domains                 []string
 }
 
 func (ia *imageAction) Start() error {
@@ -72,21 +73,23 @@ func (ia *imageAction) Start() error {
 	go func() {
 		for {
 			waitDuration := ia.refreshErrorTimeout
-			if resp, err := ia.actionDispatcherClient.AddController(context.Background(), &mediaserverproto.ActionDispatcherParam{
-				Type:        Type,
-				Actions:     actionParams,
-				Host:        &ia.host,
-				Port:        ia.port,
-				Concurrency: ia.concurrency,
-				QueueSize:   ia.queueSize,
-			}); err != nil {
-				ia.logger.Error().Err(err).Msg("cannot add controller")
-			} else {
-				if resp.GetResponse().GetStatus() != generic.ResultStatus_OK {
-					ia.logger.Error().Err(err).Msgf("cannot add controller: %s", resp.GetResponse().GetMessage())
+			for _, adClient := range ia.actionDispatcherClients {
+				if resp, err := adClient.AddController(context.Background(), &mediaserverproto.ActionDispatcherParam{
+					Type:        Type,
+					Actions:     actionParams,
+					Domains:     ia.domains,
+					Name:        ia.instance,
+					Concurrency: ia.concurrency,
+					QueueSize:   ia.queueSize,
+				}); err != nil {
+					ia.logger.Error().Err(err).Msg("cannot add controller")
 				} else {
-					waitDuration = time.Duration(resp.GetNextCallWait()) * time.Second
-					ia.logger.Info().Msgf("controller %s:%d added", ia.host, ia.port)
+					if resp.GetResponse().GetStatus() != generic.ResultStatus_OK {
+						ia.logger.Error().Err(err).Msgf("cannot add controller: %s", resp.GetResponse().GetMessage())
+					} else {
+						waitDuration = time.Duration(resp.GetNextCallWait()) * time.Second
+						ia.logger.Info().Msgf("controller %s added", ia.instance)
+					}
 				}
 			}
 			select {
@@ -110,21 +113,22 @@ func (ia *imageAction) GracefulStop() {
 			Values: params,
 		}
 	}
-	if resp, err := ia.actionDispatcherClient.RemoveController(context.Background(), &mediaserverproto.ActionDispatcherParam{
-		Type:        Type,
-		Actions:     actionParams,
-		Host:        &ia.host,
-		Port:        ia.port,
-		Concurrency: ia.concurrency,
-	}); err != nil {
-		ia.logger.Error().Err(err).Msg("cannot remove controller")
-	} else {
-		if resp.GetStatus() != generic.ResultStatus_OK {
-			ia.logger.Error().Err(err).Msgf("cannot remove controller: %s", resp.GetMessage())
+	for _, adClient := range ia.actionDispatcherClients {
+		if resp, err := adClient.RemoveController(context.Background(), &mediaserverproto.ActionDispatcherParam{
+			Type:        Type,
+			Actions:     actionParams,
+			Name:        ia.instance,
+			Concurrency: ia.concurrency,
+		}); err != nil {
+			ia.logger.Error().Err(err).Msg("cannot remove controller")
 		} else {
-			ia.logger.Info().Msgf("controller %s:%d removed", ia.host, ia.port)
-		}
+			if resp.GetStatus() != generic.ResultStatus_OK {
+				ia.logger.Error().Err(err).Msgf("cannot remove controller: %s", resp.GetMessage())
+			} else {
+				ia.logger.Info().Msgf("controller %s removed", ia.instance)
+			}
 
+		}
 	}
 	ia.done <- true
 }
@@ -276,6 +280,11 @@ func (ia *imageAction) convert(item *mediaserverproto.Item, itemCache *mediaserv
 }
 
 func (ia *imageAction) Action(ctx context.Context, ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {
+	domains := metadata.ValueFromIncomingContext(ctx, "domain")
+	var domain string
+	if len(domains) > 0 {
+		domain = domains[0]
+	}
 	item := ap.GetItem()
 	if item == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "no item defined")
@@ -285,7 +294,11 @@ func (ia *imageAction) Action(ctx context.Context, ap *mediaserverproto.ActionPa
 	if storage == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "no storage defined")
 	}
-	cacheItem, err := ia.db.GetCache(context.Background(), &mediaserverproto.CacheRequest{
+	db, ok := ia.dbs[domain]
+	if !ok {
+		return nil, status.Errorf(codes.InvalidArgument, "no database for domain %s", domain)
+	}
+	cacheItem, err := db.GetCache(context.Background(), &mediaserverproto.CacheRequest{
 		Identifier: itemIdentifier,
 		Action:     "item",
 		Params:     "",
