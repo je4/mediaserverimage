@@ -64,9 +64,9 @@ type imageAction struct {
 }
 
 func (ia *imageAction) Start() error {
-	actionParams := map[string]*generic.StringList{}
+	actionParams := map[string]*mediaserverproto.StringListMap{Type: {Values: map[string]*generic.StringList{}}}
 	for action, params := range Params {
-		actionParams[action] = &generic.StringList{
+		actionParams[Type].Values[action] = &generic.StringList{
 			Values: params,
 		}
 	}
@@ -75,7 +75,6 @@ func (ia *imageAction) Start() error {
 			waitDuration := ia.refreshErrorTimeout
 			for _, adClient := range ia.actionDispatcherClients {
 				if resp, err := adClient.AddController(context.Background(), &mediaserverproto.ActionDispatcherParam{
-					Type:        Type,
 					Actions:     actionParams,
 					Domains:     ia.domains,
 					Name:        ia.instance,
@@ -107,15 +106,14 @@ func (ia *imageAction) GracefulStop() {
 	if err := ia.image.Close(); err != nil {
 		ia.logger.Error().Err(err).Msg("cannot close image handler")
 	}
-	actionParams := map[string]*generic.StringList{}
+	actionParams := map[string]*mediaserverproto.StringListMap{Type: {Values: map[string]*generic.StringList{}}}
 	for action, params := range Params {
-		actionParams[action] = &generic.StringList{
+		actionParams[Type].Values[action] = &generic.StringList{
 			Values: params,
 		}
 	}
 	for _, adClient := range ia.actionDispatcherClients {
 		if resp, err := adClient.RemoveController(context.Background(), &mediaserverproto.ActionDispatcherParam{
-			Type:        Type,
 			Actions:     actionParams,
 			Name:        ia.instance,
 			Concurrency: ia.concurrency,
