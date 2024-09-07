@@ -125,7 +125,7 @@ level = "debug"
 logstashhost="localhost"
 logstashport=5046
 logstashtracelevel="ERROR"
-namespace="mediaserverpg"
+namespace="mediaserverimage"
 dataset=""
 #dataset="logs-mediaserver"
 [log.stash.tls]

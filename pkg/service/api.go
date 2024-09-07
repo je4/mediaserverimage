@@ -21,14 +21,15 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"io/fs"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
 var Type = "image"
 var Params = map[string][]string{
-	"resize":  {"size", "format", "stretch", "crop", "aspect", "sharpen", "blur", "tile"},
-	"convert": {"format", "tile"},
+	"resize":  {"size", "format", "stretch", "crop", "aspect", "sharpen", "blur", "tile", "compress", "quality"},
+	"convert": {"format", "tile", "compress", "quality"},
 }
 
 func NewActionService(adClients map[string]mediaserverproto.ActionDispatcherClient, instance string, domains []string, concurrency, queueSize uint32, refreshErrorTimeout time.Duration, vfs fs.FS, dbs map[string]mediaserverproto.DatabaseClient, logger zLogger.ZLogger) (*imageAction, error) {
@@ -163,7 +164,7 @@ func (ia *imageAction) loadImage(imagePath string, width, height int64, imgType 
 	return img, nil
 }
 
-func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams, format, tile string) (*mediaserverproto.Cache, error) {
+func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams, format, compress string, quality int, tile string) (*mediaserverproto.Cache, error) {
 	itemIdentifier := item.GetIdentifier()
 	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), action, params.String(), format)
 	targetPath := fmt.Sprintf(
@@ -182,7 +183,7 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto
 			ia.logger.Info().Msgf("stored %s/%s", ia.vFS, targetPath)
 		}
 	}()
-	filesize, mime, err := ia.image.Encode(img, target, format, tile)
+	filesize, mime, err := ia.image.Encode(img, target, format, compress, quality, tile)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "cannot encode %s: %v", targetPath, err)
 	}
@@ -209,6 +210,7 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto
 }
 
 func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams) (*mediaserverproto.Cache, error) {
+	var err error
 	itemIdentifier := item.GetIdentifier()
 
 	cacheItemMetadata := itemCache.GetMetadata()
@@ -220,6 +222,18 @@ func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserve
 	if format == "" {
 		format = "jpeg"
 	}
+	qualityStr := params.Get("quality")
+	quality := 100
+	if qualityStr != "" {
+		quality, err = strconv.Atoi(qualityStr)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid quality %s", qualityStr)
+		}
+		if quality < 0 || quality > 100 {
+			return nil, status.Errorf(codes.InvalidArgument, "quality %d not >= 0 and <= 100", quality)
+		}
+	}
+	compress := params.Get("compress")
 	tile := params.Get("tile")
 	var resizeType = image.ResizeTypeAspect
 	if params.Has("stretch") {
@@ -253,16 +267,29 @@ func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserve
 		}
 	}
 
-	return ia.storeImage(img, "resize", item, itemCache, storage, params, format, tile)
+	return ia.storeImage(img, "resize", item, itemCache, storage, params, format, compress, quality, tile)
 }
 
 func (ia *imageAction) convert(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams) (*mediaserverproto.Cache, error) {
+	var err error
 	itemIdentifier := item.GetIdentifier()
 	cacheItemMetadata := itemCache.GetMetadata()
 	format := params.Get("format")
 	if format == "" {
 		format = "jpeg"
 	}
+	qualityStr := params.Get("quality")
+	quality := 100
+	if qualityStr != "" {
+		quality, err = strconv.Atoi(qualityStr)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid quality %s", qualityStr)
+		}
+		if quality < 0 || quality > 100 {
+			return nil, status.Errorf(codes.InvalidArgument, "quality %d not >= 0 and <= 100", quality)
+		}
+	}
+	compress := params.Get("compress")
 	tile := params.Get("tile")
 	ia.logger.Info().Msgf("action %s/%s/%s/%s", itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), "convert", params.String())
 	itemImagePath := cacheItemMetadata.GetPath()
@@ -274,7 +301,7 @@ func (ia *imageAction) convert(item *mediaserverproto.Item, itemCache *mediaserv
 		return nil, status.Errorf(codes.Internal, "cannot decode %s: %v", itemImagePath, err)
 	}
 	defer ia.image.Release(img)
-	return ia.storeImage(img, "convert", item, itemCache, storage, params, format, tile)
+	return ia.storeImage(img, "convert", item, itemCache, storage, params, format, compress, quality, tile)
 }
 
 func (ia *imageAction) Action(ctx context.Context, ap *mediaserverproto.ActionParam) (*mediaserverproto.Cache, error) {

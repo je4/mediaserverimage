@@ -182,13 +182,27 @@ func (ni *imagickImageHandler) Resize(imgAny any, size string, resizeType Resize
 
 var tileRegexp = regexp.MustCompile(`^(\d+)x(\d+)$`)
 
-func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, tile string) (uint64, string, error) {
+func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, compress string, quality int, tile string) (uint64, string, error) {
 	img, ok := imgAny.(*imagickImage)
 	if !ok {
 		return 0, "", errors.Errorf("cannot convert %T to image.Image", imgAny)
 	}
 	var mimetype string
 
+	if compress != "" {
+		compression, ok := compresionNames[compress]
+		if !ok {
+			return 0, "", errors.Errorf("unsupported compression '%s'", compress)
+		}
+		if err := img.mw.SetCompression(compression); err != nil {
+			return 0, "", errors.Wrapf(err, "cannot set compression to %s", compression)
+		}
+	}
+	if quality >= 0 && quality <= 100 {
+		if err := img.mw.SetCompressionQuality(uint(quality)); err != nil {
+			return 0, "", errors.Wrap(err, "cannot set compression quality to 85")
+		}
+	}
 	switch strings.ToLower(format) {
 	case "jp2":
 		mimetype = "image/jp2"
@@ -209,6 +223,16 @@ func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, tile
 		}
 		if err := img.mw.SetFormat(strings.ToUpper(format)); err != nil {
 			return 0, "", errors.Wrapf(err, "cannot set format to %s", format)
+		}
+	case "ptif":
+		mimetype = fmt.Sprintf("image/tiff", format)
+		if err := img.mw.SetFormat(strings.ToUpper("ptif")); err != nil {
+			return 0, "", errors.Wrapf(err, "cannot set format to %s", format)
+		}
+		if tile != "" {
+			if err := img.mw.SetOption("tiff:tile-geometry", tile); err != nil {
+				return 0, "", errors.Wrapf(err, "cannot set tile geometry '%s'", tile)
+			}
 		}
 	default:
 		mimetype = fmt.Sprintf("image/%s", format)

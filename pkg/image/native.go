@@ -116,7 +116,7 @@ func (ni *nativeImageHandler) Resize(imgAny any, size string, resizeType ResizeT
 	return nil
 }
 
-func (ni *nativeImageHandler) Encode(imgAny any, writer io.Writer, format, tile string) (uint64, string, error) {
+func (ni *nativeImageHandler) Encode(imgAny any, writer io.Writer, format, compress, tile string) (uint64, string, error) {
 	nImg, ok := imgAny.(*nativeImage)
 	if !ok {
 		return 0, "", errors.Errorf("cannot convert %T to *nativeImage", imgAny)

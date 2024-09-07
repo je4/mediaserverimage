@@ -2,7 +2,35 @@
 
 package image
 
-import "golang.org/x/exp/maps"
+import (
+	"golang.org/x/exp/maps"
+	"gopkg.in/gographics/imagick.v3/imagick"
+)
+
+var compresionNames = map[string]imagick.CompressionType{
+	"undefined":     imagick.COMPRESSION_UNDEFINED,
+	"no":            imagick.COMPRESSION_NO,
+	"bzip":          imagick.COMPRESSION_BZIP,
+	"dxt1":          imagick.COMPRESSION_DXT1,
+	"dxt3":          imagick.COMPRESSION_DXT3,
+	"dxt5":          imagick.COMPRESSION_DXT5,
+	"fax":           imagick.COMPRESSION_FAX,
+	"group4":        imagick.COMPRESSION_GROUP4,
+	"jpeg":          imagick.COMPRESSION_JPEG,
+	"jpeg2000":      imagick.COMPRESSION_JPEG2000,
+	"lossless_jpeg": imagick.COMPRESSION_LOSSLESS_JPEG,
+	"lzw":           imagick.COMPRESSION_LZW,
+	"rle":           imagick.COMPRESSION_RLE,
+	"zip":           imagick.COMPRESSION_ZIP,
+	"zips":          imagick.COMPRESSION_ZIPS,
+	"piz":           imagick.COMPRESSION_PIZ,
+	"pxr24":         imagick.COMPRESSION_PXR24,
+	"b44":           imagick.COMPRESSION_B44,
+	"b44a":          imagick.COMPRESSION_B44A,
+	"lzma":          imagick.COMPRESSION_LZMA,
+	"jbig1":         imagick.COMPRESSION_JBIG1,
+	"jbig2":         imagick.COMPRESSION_JBIG2,
+}
 
 var imageFormatDescription = map[string]string{
 	"3FR":    "Hasselblad CFV/H3D39II Raw Format",
