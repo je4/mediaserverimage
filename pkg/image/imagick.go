@@ -225,7 +225,7 @@ func (ni *imagickImageHandler) Encode(imgAny any, writer io.Writer, format, comp
 			return 0, "", errors.Wrapf(err, "cannot set format to %s", format)
 		}
 	case "ptif":
-		mimetype = fmt.Sprintf("image/tiff", format)
+		mimetype = "image/tiff"
 		if err := img.mw.SetFormat(strings.ToUpper("ptif")); err != nil {
 			return 0, "", errors.Wrapf(err, "cannot set format to %s", format)
 		}
