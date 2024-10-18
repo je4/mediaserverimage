@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/je4/filesystem/v3/pkg/writefs"
-	generic "github.com/je4/genericproto/v2/pkg/generic/proto"
-	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
-	"github.com/je4/mediaserveraction/v2/pkg/actionController"
-	"github.com/je4/mediaserverimage/v2/pkg/image"
-	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
+	generic "go.ub.unibas.ch/cloud/genericproto/v2/pkg/generic/proto"
+	"go.ub.unibas.ch/mediaserver/mediaserveraction/v2/pkg/actionController"
+	actionParams "go.ub.unibas.ch/mediaserver/mediaserverhelper/v2/pkg/actionParams"
+	"go.ub.unibas.ch/mediaserver/mediaserverimage/v2/pkg/image"
+	mediaserverproto "go.ub.unibas.ch/mediaserver/mediaserverproto/v2/pkg/mediaserver/proto"
 	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/tiff"
 	_ "golang.org/x/image/vp8"
@@ -164,7 +164,7 @@ func (ia *imageAction) loadImage(imagePath string, width, height int64, imgType 
 	return img, nil
 }
 
-func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams, format, compress string, quality int, tile string) (*mediaserverproto.Cache, error) {
+func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionParams.ActionParams, format, compress string, quality int, tile string) (*mediaserverproto.Cache, error) {
 	itemIdentifier := item.GetIdentifier()
 	cacheName := actionController.CreateCacheName(itemIdentifier.GetCollection(), itemIdentifier.GetSignature(), action, params.String(), format)
 	targetPath := fmt.Sprintf(
@@ -209,7 +209,7 @@ func (ia *imageAction) storeImage(img any, action string, item *mediaserverproto
 
 }
 
-func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams) (*mediaserverproto.Cache, error) {
+func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionParams.ActionParams) (*mediaserverproto.Cache, error) {
 	var err error
 	itemIdentifier := item.GetIdentifier()
 
@@ -270,7 +270,7 @@ func (ia *imageAction) resize(item *mediaserverproto.Item, itemCache *mediaserve
 	return ia.storeImage(img, "resize", item, itemCache, storage, params, format, compress, quality, tile)
 }
 
-func (ia *imageAction) convert(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionCache.ActionParams) (*mediaserverproto.Cache, error) {
+func (ia *imageAction) convert(item *mediaserverproto.Item, itemCache *mediaserverproto.Cache, storage *mediaserverproto.Storage, params actionParams.ActionParams) (*mediaserverproto.Cache, error) {
 	var err error
 	itemIdentifier := item.GetIdentifier()
 	cacheItemMetadata := itemCache.GetMetadata()

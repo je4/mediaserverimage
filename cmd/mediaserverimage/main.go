@@ -4,14 +4,14 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"github.com/je4/certloader/v2/pkg/loader"
 	"github.com/je4/filesystem/v3/pkg/vfsrw"
-	"github.com/je4/mediaserverimage/v2/configs"
-	"github.com/je4/mediaserverimage/v2/pkg/service"
-	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
-	"github.com/je4/miniresolver/v2/pkg/resolver"
 	"github.com/je4/utils/v2/pkg/zLogger"
-	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger"
+	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger/v2"
+	"go.ub.unibas.ch/cloud/certloader/v2/pkg/loader"
+	"go.ub.unibas.ch/cloud/miniresolver/v2/pkg/resolver"
+	"go.ub.unibas.ch/mediaserver/mediaserverimage/v2/configs"
+	"go.ub.unibas.ch/mediaserver/mediaserverimage/v2/pkg/service"
+	mediaserverproto "go.ub.unibas.ch/mediaserver/mediaserverproto/v2/pkg/mediaserver/proto"
 	"io"
 	"io/fs"
 	"log"
@@ -61,12 +61,15 @@ func main() {
 		defer loggerLoader.Close()
 	}
 
-	_logger, _logstash, _logfile := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
+	_logger, _logstash, _logfile, err := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
 		ublogger.SetDataset(conf.Log.Stash.Dataset),
 		ublogger.SetLogStash(conf.Log.Stash.LogstashHost, conf.Log.Stash.LogstashPort, conf.Log.Stash.Namespace, conf.Log.Stash.LogstashTraceLevel),
 		ublogger.SetTLS(conf.Log.Stash.TLS != nil),
 		ublogger.SetTLSConfig(loggerTLSConfig),
 	)
+	if err != nil {
+		log.Fatalf("cannot create logger: %v", err)
+	}
 	if _logstash != nil {
 		defer _logstash.Close()
 	}

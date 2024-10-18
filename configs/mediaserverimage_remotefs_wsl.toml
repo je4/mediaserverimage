@@ -14,35 +14,18 @@ type = "minivault"
 initialtimeout = "1h"
 [server.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc2553ea702db53.8c7d17de83f18739" #pa.2dc483e73851c137.15d94e61e0b377f1
+parenttoken = "pa.2dd5c794e8b134bb.56011f6d9807a45d" #pa.2dc483e73851c137.15d94e61e0b377f1
 tokentype = "server_cert"
 tokenpolicies = ["instance_ubimage.mediaserveraction"]
-tokeninterval = "1h"
-tokenttl = "2h"
+tokeninterval = "48h"
+tokenttl = "96h"
 certtype = "server_cert"
 dnss = ["instance_ubimage.mediaserverproto.Action"]
 uris = []
 ips = []
-certinterval = "8m"
-certttl = "10m"
-ca = ["""-----BEGIN CERTIFICATE-----
-MIICxTCCAkqgAwIBAgIGAY4FTF/mMAoGCCqGSM49BAMDMIGYMQswCQYDVQQGEwJD
-SDETMBEGA1UECBMKQmFzZWwgQ2l0eTEOMAwGA1UEBxMFQmFzZWwxIDAeBgNVBAkM
-F1NjaMO2bmJlaW5zdHJhc3NlIDE4LTIwMQ0wCwYDVQQREwQ0MDU2MSEwHwYDVQQK
-ExhVbml2ZXJzaXR5IExpYnJhcnkgQmFzZWwxEDAOBgNVBAMTB0R1bW15Q0EwHhcN
-MjQwMzAzMTcxMTE1WhcNMzQwMzAxMTcxMTE1WjCBmDELMAkGA1UEBhMCQ0gxEzAR
-BgNVBAgTCkJhc2VsIENpdHkxDjAMBgNVBAcTBUJhc2VsMSAwHgYDVQQJDBdTY2jD
-tm5iZWluc3RyYXNzZSAxOC0yMDENMAsGA1UEERMENDA1NjEhMB8GA1UEChMYVW5p
-dmVyc2l0eSBMaWJyYXJ5IEJhc2VsMRAwDgYDVQQDEwdEdW1teUNBMHYwEAYHKoZI
-zj0CAQYFK4EEACIDYgAErHxZYoHwHzTqRg14Ve9/APs/D+sMSKDTpPTZYFocZedF
-VGJEkeaCqQvsCY5G9WaHXI7jZtewKo/bHM/WcmXZB+cZNmJn/IyBHJAYh5xN5WBY
-vUPJfRfQosSFr8SDE4MPo2EwXzAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYI
-KwYBBQUHAwIGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFH+I
-PuzNyAOrQ+rMTtywGqm3Z5ARMAoGCCqGSM49BAMDA2kAMGYCMQDJNau3j1v1FQHQ
-n7kn+gEATGOm+9fBsgUCGXmKvLZPIJI3NI2URLmlmASdEIrg/N4CMQCNQio9BHom
-JYLotIXmdUEmKuXZeKoc0eR1jA7kWdJNOvEpE73mx/zutDeNl3hRVP0=
------END CERTIFICATE-----
-"""]
+certinterval = "24h"
+certttl = "48h"
+ca = ["certs/minivault.ca.pem"]
 usesystempool = false
 
 [client]
@@ -50,11 +33,11 @@ type = "minivault"
 initialtimeout = "1h"
 [client.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc2553ea702db53.8c7d17de83f18739" #pa.2dc483e73851c137.15d94e61e0b377f1
+parenttoken = "pa.2dd5c794e8b134bb.56011f6d9807a45d" #pa.2dc483e73851c137.15d94e61e0b377f1
 tokentype = "client_cert"
 tokenpolicies = ["instance_ubimage.mediaserveraction"]
-tokeninterval = "1h"
-tokenttl = "2h"
+tokeninterval = "48h"
+tokenttl = "96h"
 certtype = "client_cert"
 dnss = []
 uris = [
@@ -64,28 +47,10 @@ uris = [
     "grpc:ubmedia.mediaserverproto.ActionDispatcher",
     "grpc:mediathek.mediaserverproto.ActionDispatcher"]
 ips = []
-certinterval = "8m"
-certttl = "10m"
-ca = ["""-----BEGIN CERTIFICATE-----
-MIICxTCCAkqgAwIBAgIGAY4FTF/mMAoGCCqGSM49BAMDMIGYMQswCQYDVQQGEwJD
-SDETMBEGA1UECBMKQmFzZWwgQ2l0eTEOMAwGA1UEBxMFQmFzZWwxIDAeBgNVBAkM
-F1NjaMO2bmJlaW5zdHJhc3NlIDE4LTIwMQ0wCwYDVQQREwQ0MDU2MSEwHwYDVQQK
-ExhVbml2ZXJzaXR5IExpYnJhcnkgQmFzZWwxEDAOBgNVBAMTB0R1bW15Q0EwHhcN
-MjQwMzAzMTcxMTE1WhcNMzQwMzAxMTcxMTE1WjCBmDELMAkGA1UEBhMCQ0gxEzAR
-BgNVBAgTCkJhc2VsIENpdHkxDjAMBgNVBAcTBUJhc2VsMSAwHgYDVQQJDBdTY2jD
-tm5iZWluc3RyYXNzZSAxOC0yMDENMAsGA1UEERMENDA1NjEhMB8GA1UEChMYVW5p
-dmVyc2l0eSBMaWJyYXJ5IEJhc2VsMRAwDgYDVQQDEwdEdW1teUNBMHYwEAYHKoZI
-zj0CAQYFK4EEACIDYgAErHxZYoHwHzTqRg14Ve9/APs/D+sMSKDTpPTZYFocZedF
-VGJEkeaCqQvsCY5G9WaHXI7jZtewKo/bHM/WcmXZB+cZNmJn/IyBHJAYh5xN5WBY
-vUPJfRfQosSFr8SDE4MPo2EwXzAOBgNVHQ8BAf8EBAMCAoQwHQYDVR0lBBYwFAYI
-KwYBBQUHAwIGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFH+I
-PuzNyAOrQ+rMTtywGqm3Z5ARMAoGCCqGSM49BAMDA2kAMGYCMQDJNau3j1v1FQHQ
-n7kn+gEATGOm+9fBsgUCGXmKvLZPIJI3NI2URLmlmASdEIrg/N4CMQCNQio9BHom
-JYLotIXmdUEmKuXZeKoc0eR1jA7kWdJNOvEpE73mx/zutDeNl3hRVP0=
------END CERTIFICATE-----
-"""]
+certinterval = "24h"
+certttl = "48h"
+ca = ["certs/minivault.ca.pem"]
 usesystempool = false
-
 
 [vfs.test]
 name = "test"
